@@ -1,0 +1,156 @@
+import hashlib
+import secrets
+import string
+import smtplib
+from email.message import EmailMessage
+
+# ===== CONFIG =====
+SAFE_THRESHOLD = 10**7  # Minimum safe crack time
+
+
+# ===== Crack Time Estimator =====
+def estimate_crack_time(password):
+    length = len(password)
+    charset_size = 0
+
+    if any(c.islower() for c in password):
+        charset_size += 26
+    if any(c.isupper() for c in password):
+        charset_size += 26
+    if any(c.isdigit() for c in password):
+        charset_size += 10
+    if any(not c.isalnum() for c in password):
+        charset_size += 32
+
+    combinations = charset_size ** length
+    guesses_per_second = 1_000_000_000
+    seconds = combinations / guesses_per_second
+    return seconds
+
+
+# ===== Generate Strong Password =====
+def generate_strong_password(length=14):
+    characters = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(secrets.choice(characters) for _ in range(length))
+
+
+# ===== Hash Password =====
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+# ===== Simulated Database =====
+user_db = {}
+
+
+# ===== Alert System =====
+def send_alert(username, email, new_password):
+    print("\n🚨 SECURITY ALERT 🚨")
+    print(f"User: {username}")
+    print("Weak password detected!")
+    print("Temporary password generated.")
+    print("Temporary Password:", new_password)
+
+    # OPTIONAL: Real Email Sending
+    # Uncomment below to use real email alert
+
+    """
+    msg = EmailMessage()
+    msg.set_content(f'''
+    Security Alert!
+
+    Your password was too weak and could be cracked quickly.
+    A temporary password has been generated:
+
+    {new_password}
+
+    Please login and change it immediately.
+    ''')
+
+    msg['Subject'] = "PassCheck Security Alert"
+    msg['From'] = "your_email@gmail.com"
+    msg['To'] = email
+
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+        smtp.login("your_email@gmail.com", "app_password")
+        smtp.send_message(msg)
+    """
+
+
+# ===== Register =====
+def register():
+    username = input("Enter username: ")
+    email = input("Enter email: ")
+    password = input("Enter password: ")
+
+    user_db[username] = {
+        "email": email,
+        "password": hash_password(password)
+    }
+
+    print("✅ Registration successful!")
+
+
+# ===== Login =====
+def login():
+    username = input("Enter username: ")
+    password = input("Enter password: ")
+
+    if username not in user_db:
+        print("❌ User not found.")
+        return
+
+    if user_db[username]["password"] == hash_password(password):
+
+        crack_time = estimate_crack_time(password)
+        print(f"Estimated Crack Time: {crack_time:.2e} seconds")
+
+        if crack_time < SAFE_THRESHOLD:
+            print("⚠️ Weak password detected! Auto reset initiated.")
+
+            new_password = generate_strong_password()
+            user_db[username]["password"] = hash_password(new_password)
+
+            send_alert(username, user_db[username]["email"], new_password)
+
+            print("🔒 Account temporarily secured. Please login again.")
+        else:
+            print("✅ Login successful. Password is secure.")
+
+    else:
+        print("❌ Incorrect password.")
+
+
+# ===== Change Password =====
+def change_password():
+    username = input("Enter username: ")
+    old_password = input("Enter old password: ")
+
+    if username in user_db and user_db[username]["password"] == hash_password(old_password):
+        new_password = input("Enter new password: ")
+        user_db[username]["password"] = hash_password(new_password)
+        print("✅ Password updated successfully!")
+    else:
+        print("❌ Authentication failed.")
+
+
+# ===== Main Menu =====
+while True:
+    print("\n--- PASSCHECK SYSTEM ---")
+    print("1. Register")
+    print("2. Login")
+    print("3. Change Password")
+    print("4. Exit")
+
+    choice = input("Choose option: ")
+
+    if choice == "1":
+        register()
+    elif choice == "2":
+        login()
+    elif choice == "3":
+        change_password()
+    elif choice == "4":
+        break
+    else:
+        print("Invalid choice")
